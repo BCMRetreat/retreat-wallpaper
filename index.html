@@ -6,20 +6,9 @@
   <title>Retreat Wallpaper</title>
 
   <style>
-    body {
-      font-family: system-ui, -apple-system, Arial;
-      margin: 0;
-      padding: 16px;
-      max-width: 520px;
-    }
-    h2 { margin-bottom: 8px; }
-
-    .card {
-      border: 1px solid #ddd;
-      border-radius: 18px;
-      padding: 14px;
-    }
-
+    body { font-family: system-ui, -apple-system, Arial; margin: 0; padding: 16px; max-width: 520px; }
+    h2 { margin: 0 0 10px; }
+    .card { border: 1px solid #ddd; border-radius: 18px; padding: 14px; }
     textarea, input {
       width: 100%;
       font-size: 16px;
@@ -27,29 +16,11 @@
       border-radius: 12px;
       border: 1px solid #ccc;
       margin-bottom: 8px;
+      box-sizing: border-box;
     }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 12px;
-      border: 0;
-      margin-top: 6px;
-    }
-
-    canvas {
-      width: 100%;
-      border-radius: 18px;
-      margin-top: 14px;
-      border: 1px solid #eee;
-    }
-
-    .hint {
-      font-size: 13px;
-      opacity: 0.8;
-      margin-bottom: 8px;
-    }
+    button { width: 100%; padding: 12px; font-size: 16px; border-radius: 12px; border: 0; margin-top: 6px; }
+    canvas { width: 100%; border-radius: 18px; margin-top: 14px; border: 1px solid #eee; }
+    .hint { font-size: 13px; opacity: 0.8; margin-bottom: 8px; }
   </style>
 </head>
 
@@ -57,15 +28,11 @@
   <h2>🌤️ Create Your Retreat Wallpaper</h2>
 
   <div class="card">
-    <input id="line1" maxlength="40" placeholder="A word or phrase (e.g. Joy, Trust, Stillness)" />
+    <input id="field1" maxlength="40" placeholder="Field 1 (e.g. One word)" />
+    <textarea id="field2" maxlength="120" placeholder="Field 2 (e.g. A short sentence)…"></textarea>
+    <textarea id="field3" maxlength="120" placeholder="Field 3 (e.g. A prayer / intention)…"></textarea>
 
-    <textarea id="line2" maxlength="120"
-      placeholder="A short sentence God is placing on your heart…"></textarea>
-
-    <textarea id="line3" maxlength="120"
-      placeholder="A prayer or intention you want to carry forward…"></textarea>
-
-    <div class="hint">Tip: shorter lines look best on a wallpaper ✨</div>
+    <div class="hint">Tip: shorter lines look best ✨</div>
 
     <button id="gen">Generate Preview</button>
     <button id="dl">Download Wallpaper</button>
@@ -77,70 +44,139 @@
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
 
-    const l1 = document.getElementById("line1");
-    const l2 = document.getElementById("line2");
-    const l3 = document.getElementById("line3");
+    const f1 = document.getElementById("field1");
+    const f2 = document.getElementById("field2");
+    const f3 = document.getElementById("field3");
 
     const bg = new Image();
-    bg.src = "bg.png"; // background image
+    bg.src = "bg.png"; // keep bg.png in same folder as index.html
 
-    function drawCenteredText(text, y, fontSize, weight = "400") {
-      if (!text) return;
-      ctx.font = `${weight} ${fontSize}px system-ui`;
-      ctx.fillText(text, canvas.width / 2, y);
+    // ---- helpers ----
+    function roundRectPath(x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rr);
+      ctx.arcTo(x + w, y + h, x, y + h, rr);
+      ctx.arcTo(x, y + h, x, y, rr);
+      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.closePath();
     }
 
-    function wrapCenteredText(text, startY, fontSize, lineHeight, maxWidth) {
-      if (!text) return startY;
+    function wrapTextLines(text, fontSize, maxWidth) {
+      const cleaned = (text || "").trim();
+      if (!cleaned) return [];
 
       ctx.font = `${fontSize}px system-ui`;
-      const words = text.split(/\s+/);
+      const words = cleaned.split(/\s+/);
+      const lines = [];
       let line = "";
-      let y = startY;
 
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + " ";
-        const w = ctx.measureText(testLine).width;
-        if (w > maxWidth && line) {
-          ctx.fillText(line.trim(), canvas.width / 2, y);
-          line = words[i] + " ";
-          y += lineHeight;
+      for (const w of words) {
+        const test = (line ? line + " " : "") + w;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = w;
         } else {
-          line = testLine;
+          line = test;
         }
       }
-      ctx.fillText(line.trim(), canvas.width / 2, y);
-      return y + lineHeight;
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function drawBox({ x, y, w, h, radius, title, text, titleSize, textSize }) {
+      // box background
+      roundRectPath(x, y, w, h, radius);
+      ctx.fillStyle = "rgba(255,255,255,0.40)";   // adjust opacity here
+      ctx.fill();
+
+      // subtle border
+      roundRectPath(x, y, w, h, radius);
+      ctx.strokeStyle = "rgba(0,0,0,0.10)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const padX = 44;
+      const padY = 44;
+      const innerX = x + padX;
+      const innerY = y + padY;
+      const innerW = w - padX * 2;
+
+      // title (optional)
+      let cursorY = innerY;
+
+      if (title) {
+        ctx.fillStyle = "rgba(0,0,0,0.60)";
+        ctx.font = `600 ${titleSize}px system-ui`;
+        ctx.textAlign = "left";
+        ctx.fillText(title, innerX, cursorY);
+        cursorY += titleSize + 22;
+      }
+
+      // text
+      ctx.fillStyle = "#1b1b1b";
+      ctx.font = `${textSize}px system-ui`;
+      ctx.textAlign = "left";
+
+      const lines = wrapTextLines(text, textSize, innerW);
+      const lineH = Math.round(textSize * 1.28);
+
+      // vertically center text block within remaining space
+      const availableH = (y + h) - cursorY - padY;
+      const textBlockH = lines.length * lineH;
+      let startY = cursorY + Math.max(0, (availableH - textBlockH) / 2) + textSize;
+
+      // limit lines to prevent overflow
+      const maxLines = Math.floor(availableH / lineH);
+      const finalLines = lines.slice(0, Math.max(1, maxLines));
+
+      for (const line of finalLines) {
+        ctx.fillText(line, innerX, startY);
+        startY += lineH;
+      }
     }
 
     function draw() {
+      // background
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // soft overlay for readability
-      ctx.fillStyle = "rgba(255,255,255,0.28)";
-      ctx.fillRect(80, 620, 920, 620);
+      // common layout
+      const x = 90;
+      const w = 900;
+      const radius = 28;
 
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#1b1b1b";
+      // 3 separate boxes
+      drawBox({
+        x, y: 520, w, h: 240, radius,
+        title: "ONE WORD",
+        text: f1.value,
+        titleSize: 28,
+        textSize: 64
+      });
 
-      let y = 760;
+      drawBox({
+        x, y: 800, w, h: 360, radius,
+        title: "WHAT I’M LEARNING",
+        text: f2.value,
+        titleSize: 28,
+        textSize: 52
+      });
 
-      // Line 1: key word / phrase
-      drawCenteredText(l1.value.trim(), y, 72, "600");
-      y += 110;
-
-      // Line 2: sentence
-      y = wrapCenteredText(l2.value.trim(), y, 56, 72, 820);
-      y += 40;
-
-      // Line 3: prayer / intention
-      wrapCenteredText(l3.value.trim(), y, 52, 68, 820);
+      drawBox({
+        x, y: 1200, w, h: 360, radius,
+        title: "MY PRAYER",
+        text: f3.value,
+        titleSize: 28,
+        textSize: 50
+      });
 
       // footer
+      ctx.textAlign = "center";
       ctx.font = "34px system-ui";
       ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillText("Broadcast Ministry Retreat 2026", canvas.width / 2, 1760);
+      ctx.fillText("Broadcast Ministry Retreat 2026", canvas.width / 2, 1800);
     }
 
     bg.onload = draw;
